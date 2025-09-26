@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+    /* Custom palette from Radix screenshot */
+    --accent: #8A31AA;
+    --gray: #8B8D98;
+    --bg: #141018; /* base dark purple instead of pure black */
+    --bg-gradient: radial-gradient(1200px 1200px at 15% -10%, rgba(138, 49, 170, 0.22), transparent 40%),
+      radial-gradient(1000px 1000px at 110% 25%, rgba(139, 141, 152, 0.18), transparent 45%),
+      linear-gradient(180deg, #141018 0%, #121018 100%);
+  }
+}
+
+/* Apply background globally */
+body {
+  background: var(--bg-gradient);
+}

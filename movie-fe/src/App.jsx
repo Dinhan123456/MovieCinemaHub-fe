@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import HomePage from './pages/HomePage'
 import BookingPage from './pages/BookingPage'
 import MovieDetail from './pages/MovieDetail'
+import Admin from './pages/Admin'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import { AuthAPI } from './api/http'
@@ -31,6 +32,15 @@ function App() {
 
   const isAuthed = !!AuthAPI.getToken()
   const username = AuthAPI.getUsername()
+  const roles = JSON.parse(localStorage.getItem('roles') || '[]')
+
+  // Toast minimal
+  const [toasts, setToasts] = useState([])
+  const pushToast = (text) => {
+    const id = Math.random().toString(36).slice(2)
+    setToasts((t)=>[...t,{ id, text }])
+    setTimeout(()=> setToasts((t)=> t.filter(x=>x.id!==id)), 2500)
+  }
 
   return (
     <div className="App">
@@ -43,6 +53,10 @@ function App() {
               <button onClick={()=>setCurrentPage('home')} className="text-xl sm:text-2xl font-extrabold bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(90deg, #8A31AA, #8B8D98)' }}>CinemaHub</button>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
+              <button onClick={()=>setCurrentPage('home')} className="px-3 py-1.5 text-sm rounded-lg border-2 transition" style={{ borderColor: 'rgba(255,255,255,0.2)', color: '#8B8D98' }}>Trang chủ</button>
+              {isAuthed && roles.includes('ROLE_ADMIN') && (
+                <button onClick={()=>setCurrentPage('admin')} className="px-3 py-1.5 text-sm rounded-lg text-white shadow hover:shadow-md transition" style={{ background: 'linear-gradient(90deg, #8A31AA, #8B8D98)' }}>Admin</button>
+              )}
               {!isAuthed && (
                 <>
                   <button onClick={()=>setCurrentPage('login')} className="px-3 py-1.5 text-sm rounded-lg border-2 transition" style={{ borderColor: 'rgba(255,255,255,0.2)', color: '#8B8D98' }}>Đăng nhập</button>
@@ -55,7 +69,7 @@ function App() {
                     <span className="w-6 h-6 rounded-full text-white flex items-center justify-center text-xs font-bold" style={{ background: 'linear-gradient(90deg, #8A31AA, #8B8D98)' }}>{(username||'U').slice(0,1).toUpperCase()}</span>
                     <span className="font-medium">{username}</span>
                   </div>
-                  <button onClick={()=>{AuthAPI.logout(); setCurrentPage('home')}} className="px-3 py-1.5 text-sm rounded-lg border-2 transition" style={{ borderColor: 'rgba(255,255,255,0.2)', color: '#8B8D98' }}>Đăng xuất</button>
+                  <button onClick={()=>{AuthAPI.logout(); pushToast('Đăng xuất thành công'); setCurrentPage('login')}} className="px-3 py-1.5 text-sm rounded-lg border-2 transition" style={{ borderColor: 'rgba(255,255,255,0.2)', color: '#8B8D98' }}>Đăng xuất</button>
                 </div>
               )}
             </div>
@@ -70,10 +84,14 @@ function App() {
           onRequireLogin={()=>setCurrentPage('login')}
         />
       )}
+      {currentPage === 'admin' && (
+        <Admin />
+      )}
       {currentPage === 'detail' && selectedMovie && (
         <MovieDetail 
           movieId={selectedMovie.id}
           onSelectShowtime={(st, list)=>{ setSelectedShowtime({...st, list}); setCurrentPage('booking'); }}
+          onBack={()=>setCurrentPage('home')}
         />
       )}
       {currentPage === 'booking' && selectedMovie && selectedShowtime && (
@@ -85,11 +103,18 @@ function App() {
         />
       )}
       {currentPage === 'login' && (
-        <Login onSuccess={()=>setCurrentPage('home')} />
+        <Login onSuccess={()=>{ pushToast('Đăng nhập thành công'); setCurrentPage('home') }} />
       )}
       {currentPage === 'register' && (
-        <Register onSuccess={()=>setCurrentPage('home')} />
+        <Register onSuccess={()=>{ pushToast('Đăng ký thành công, vui lòng đăng nhập'); setCurrentPage('login') }} />
       )}
+
+      {/* Toast Container */}
+      <div className="fixed top-16 right-4 z-[9999] space-y-2">
+        {toasts.map(t => (
+          <div key={t.id} className="px-4 py-2 rounded-lg text-sm text-white shadow-lg" style={{ background:'linear-gradient(90deg, #8A31AA, #8B8D98)'}}>{t.text}</div>
+        ))}
+      </div>
     </div>
   )
 }

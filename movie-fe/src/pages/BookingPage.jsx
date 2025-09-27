@@ -344,7 +344,7 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
                   <div className="flex justify-between items-center py-3 border-b border-gray-200">
                     <span className="text-lg font-semibold text-gray-700">🕐 Suất chiếu:</span>
                     <span className="text-lg font-bold text-green-600">
-                      {selectedShowtime || 'Chưa chọn'}
+                      {selectedShowtimeText || 'Chưa chọn'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-3 border-b border-gray-200">

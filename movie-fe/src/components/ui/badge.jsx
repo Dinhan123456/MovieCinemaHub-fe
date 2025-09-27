@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-function Badge({ className, variant = "default", ...props }, ref) {
+const Badge = React.forwardRef(({ className, variant = "default", ...props }, ref) => {
   return (
     <div
       ref={ref}
@@ -21,6 +21,7 @@ function Badge({ className, variant = "default", ...props }, ref) {
       {...props}
     />
   )
-}
+})
+Badge.displayName = "Badge"
 
 export { Badge }

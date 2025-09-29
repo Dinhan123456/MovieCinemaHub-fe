@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Search, Star, Calendar, Clock } from 'lucide-react'
+import { Search, Star, Clock, Calendar } from 'lucide-react'
 
 // Dữ liệu từ backend
 const API_BASE = 'http://127.0.0.1:8080/api'
@@ -160,27 +160,6 @@ export default function HomePage({ onBookTicket, isAuthed, onRequireLogin }) {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-gradient)' }}>
-      {/* Header */}
-      <header className="backdrop-blur-md shadow-lg sticky top-0 z-50" style={{ backgroundColor: 'rgba(17,17,17,0.8)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(90deg, #8A31AA, #8B8D98)' }}>
-                <span className="text-white font-bold text-xl">C</span>
-              </div>
-              <div>
-                <h1 className="text-4xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(90deg, #8A31AA, #8B8D98)' }}>
-                  CinemaHub
-                </h1>
-                <p className="mt-1 text-lg" style={{ color: '#8B8D98' }}>Khám phá những bộ phim hay nhất</p>
-              </div>
-            </div>
-            <div className="text-sm px-4 py-2 rounded-full backdrop-blur-sm" style={{ color: '#8B8D98', backgroundColor: 'rgba(255,255,255,0.05)' }}>
-              📅 Hôm nay: {new Date().toLocaleDateString('vi-VN')}
-            </div>
-          </div>
-        </div>
-      </header>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

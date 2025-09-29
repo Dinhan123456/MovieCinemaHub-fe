@@ -64,7 +64,20 @@ export default function MovieDetail({ movieId, onSelectShowtime, onBack }) {
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-4">
-        <button onClick={onBack} className="px-3 py-1.5 text-sm rounded-lg border-2 transition" style={{ borderColor: 'rgba(255,255,255,0.2)', color: '#8B8D98' }}>← Quay lại</button>
+        <button 
+          onClick={() => {
+            console.log('Back button clicked in MovieDetail')
+            if (onBack) {
+              onBack()
+            } else {
+              console.error('onBack function is not defined')
+            }
+          }} 
+          className="px-3 py-1.5 text-sm rounded-lg border-2 transition hover:bg-white/10" 
+          style={{ borderColor: 'rgba(255,255,255,0.2)', color: '#8B8D98' }}
+        >
+          ← Quay lại
+        </button>
       </div>
       <div className="mb-6">
         <h1 className="text-3xl font-extrabold text-white mb-2">{movie.title}</h1>
@@ -95,7 +108,7 @@ export default function MovieDetail({ movieId, onSelectShowtime, onBack }) {
         {currentList.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {currentList.map(st => (
-              <ShowtimeCard key={st.id} st={st} onSelect={() => onSelectShowtime(st, currentList)} />
+              <ShowtimeCard key={st.id} st={st} onSelect={() => onSelectShowtime(st, currentList, movie)} />
             ))}
           </div>
         ) : (

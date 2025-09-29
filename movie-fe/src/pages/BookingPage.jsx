@@ -9,6 +9,8 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
   const [selectedShowtimeText, setSelectedShowtimeText] = useState('')
   const [selectedSeats, setSelectedSeats] = useState([])
   const [soldSeats, setSoldSeats] = useState(new Set())
+  const [allShowtimes, setAllShowtimes] = useState([])
+  const [currentSelectedShowtime, setCurrentSelectedShowtime] = useState(null)
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     email: '',
@@ -32,14 +34,41 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
     }
   }
 
-  const totalPrice = selectedSeats.length * selectedMovie.price
+  const totalPrice = selectedSeats.length * (selectedMovie?.price || 0)
+
+  // Load all showtimes for the movie
+  React.useEffect(() => {
+    const loadShowtimes = async () => {
+      try {
+        if (!selectedMovie?.id) return
+        const res = await fetch(`http://127.0.0.1:8080/api/movies/${selectedMovie.id}/showtimes`)
+        if (!res.ok) throw new Error('Không tải được danh sách suất chiếu')
+        const data = await res.json()
+        setAllShowtimes(data)
+        
+        // Set the initially selected showtime
+        if (selectedShowtime) {
+          setCurrentSelectedShowtime(selectedShowtime)
+          setSelectedShowtimeText(new Date(selectedShowtime.startTime).toLocaleString('vi-VN'))
+        } else if (data.length > 0) {
+          // If no showtime selected, pick the first one
+          const firstShowtime = data[0]
+          setCurrentSelectedShowtime(firstShowtime)
+          setSelectedShowtimeText(new Date(firstShowtime.startTime).toLocaleString('vi-VN'))
+        }
+      } catch (e) {
+        console.error('Error loading showtimes:', e)
+      }
+    }
+    loadShowtimes()
+  }, [selectedMovie?.id, selectedShowtime])
 
   // Load seat states from backend by showtimeId
   React.useEffect(() => {
     const loadSeats = async () => {
       try {
-        if (!selectedShowtime?.id) return
-        const res = await fetch(`http://127.0.0.1:8080/api/showtimes/${selectedShowtime.id}/seats`)
+        if (!currentSelectedShowtime?.id) return
+        const res = await fetch(`http://127.0.0.1:8080/api/showtimes/${currentSelectedShowtime.id}/seats`)
         if (!res.ok) throw new Error('Không tải được danh sách ghế')
         const data = await res.json()
         const sold = new Set(data.filter(s => s.sold).map(s => s.seatCode))
@@ -49,23 +78,44 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
       }
     }
     loadSeats()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedShowtime?.id])
+  }, [currentSelectedShowtime?.id])
 
   const validate = () => {
     const errors = {}
     if (!customerInfo.name.trim()) errors.name = 'Vui lòng nhập họ tên'
     if (!customerInfo.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) errors.email = 'Email không hợp lệ'
     if (!customerInfo.phone.match(/^[0-9]{10}$/)) errors.phone = 'Số điện thoại phải gồm đúng 10 chữ số'
-    if (!selectedShowtimeText) errors.showtime = 'Chọn suất chiếu'
+    if (!currentSelectedShowtime) errors.showtime = 'Chọn suất chiếu'
     if (selectedSeats.length === 0) errors.seats = 'Chọn ít nhất 1 ghế'
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
 
+  // Real-time validation
+  const validateField = (field, value) => {
+    let error = ''
+    switch (field) {
+      case 'name':
+        if (!value.trim()) error = 'Vui lòng nhập họ tên'
+        break
+      case 'email':
+        if (value && !value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) error = 'Email không hợp lệ'
+        break
+      case 'phone':
+        if (value && !value.match(/^[0-9]{10}$/)) error = 'Số điện thoại phải gồm đúng 10 chữ số'
+        break
+    }
+    setFormErrors(prev => ({ ...prev, [field]: error }))
+  }
+
   const handleBooking = async () => {
     if (!selectedShowtimeText || selectedSeats.length === 0 || !customerInfo.name || !customerInfo.email || !customerInfo.phone) {
       if (!validate()) return
+    }
+
+    if (!selectedMovie || !currentSelectedShowtime) {
+      alert('Vui lòng chọn phim và suất chiếu')
+      return
     }
 
     try {
@@ -74,7 +124,7 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           movieId: selectedMovie.id,
-          showtimeId: selectedShowtime.id,
+          showtimeId: currentSelectedShowtime.id,
           showtime: selectedShowtimeText,
           seats: selectedSeats,
           name: customerInfo.name,
@@ -104,40 +154,35 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md shadow-lg border-b border-white/20 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center gap-6">
-            <Button 
-              variant="outline" 
-              onClick={onBack}
-              className="bg-white/50 hover:bg-white/80 border-2 border-gray-200 hover:border-blue-300 shadow-lg hover:shadow-xl transition-all duration-300"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Quay lại
-            </Button>
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-gradient-to-r from-green-600 to-blue-600 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-xl">🎫</span>
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-                  Đặt Vé Xem Phim
-                </h1>
-                <p className="text-gray-600 text-lg font-medium">{selectedMovie.title}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+  // Show loading if no movie data
+  if (!selectedMovie) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-gradient)' }}>
+        <div className="text-white text-xl">Đang tải thông tin phim...</div>
+      </div>
+    )
+  }
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  return (
+    <div className="min-h-screen" style={{ background: 'var(--bg-gradient)' }}>
+      {/* Optional: nút quay lại gọn trong nội dung */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <Button 
+          variant="outline" 
+          onClick={onBack}
+          className="px-3 py-1.5 text-sm rounded-lg border-2 transition" 
+          style={{ borderColor: 'rgba(255,255,255,0.2)', color: '#8B8D98' }}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Quay lại
+        </Button>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Movie Info */}
           <div className="lg:col-span-1">
-            <Card className="bg-white/80 backdrop-blur-sm shadow-xl border-0 overflow-hidden">
+            <Card className="bg-white/70 backdrop-blur-sm shadow-xl border-0 overflow-hidden border border-white/20">
               <div className="relative">
                 <img 
                   src={selectedMovie.image} 
@@ -180,7 +225,7 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
           {/* Booking Form */}
           <div className="lg:col-span-2 space-y-6">
             {/* Showtime Selection */}
-            <Card className="bg-white/80 backdrop-blur-sm shadow-xl border-0">
+            <Card className="bg-white/70 backdrop-blur-sm shadow-xl border-0 border border-white/20">
               <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-lg">
                 <CardTitle className="flex items-center gap-3 text-xl">
                   <Clock className="w-6 h-6 text-blue-600" />
@@ -190,35 +235,46 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  {(selectedShowtime?.list || [selectedShowtime]).map((st) => (
-                    <Button
-                      key={st.id}
-                      variant={selectedShowtime?.id === st.id ? "default" : "outline"}
-                      onClick={() => {
-                        // đổi suất → cập nhật showtime được chọn + text hiển thị và reload ghế
-                        setSelectedSeats([])
-                        setSoldSeats(new Set())
-                        // replace selectedShowtime fields
-                        selectedShowtime.id = st.id
-                        selectedShowtime.startTime = st.startTime
-                        setSelectedShowtimeText(new Date(st.startTime).toLocaleString('vi-VN'))
-                      }}
-                      className={`h-14 text-lg font-semibold transition-all duration-300 ${
-                        selectedShowtime?.id === st.id
-                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
-                          : 'bg-white/50 text-gray-700 border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md'
-                      }`}
-                    >
-                      🕐 {new Date(st.startTime).toLocaleTimeString('vi-VN')}
-                    </Button>
-                  ))}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {allShowtimes.map((st) => {
+                    if (!st || !st.id) return null; // Skip invalid showtimes
+                    return (
+                      <Button
+                        key={st.id}
+                        variant={currentSelectedShowtime?.id === st.id ? "default" : "outline"}
+                        onClick={() => {
+                          // đổi suất → cập nhật showtime được chọn + text hiển thị và reload ghế
+                          setSelectedSeats([])
+                          setSoldSeats(new Set())
+                          setCurrentSelectedShowtime(st)
+                          setSelectedShowtimeText(new Date(st.startTime).toLocaleString('vi-VN'))
+                        }}
+                        className={`h-16 text-lg font-semibold transition-all duration-300 ${
+                          currentSelectedShowtime?.id === st.id
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
+                            : 'bg-white/50 text-gray-700 border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center">
+                          <div className="text-sm">🕐</div>
+                          <div className="font-bold">{new Date(st.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+                          <div className="text-xs opacity-75">{st.auditorium || 'Room A'}</div>
+                        </div>
+                      </Button>
+                    )
+                  })}
                 </div>
+                {allShowtimes.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="text-4xl mb-2">🎬</div>
+                    <p>Chưa có suất chiếu nào cho phim này</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
             {/* Seat Selection */}
-            <Card className="bg-white/80 backdrop-blur-sm shadow-xl border-0">
+            <Card className="bg-white/70 backdrop-blur-sm shadow-xl border-0 border border-white/20">
               <CardHeader className="bg-gradient-to-r from-green-50 to-blue-50 rounded-t-lg">
                 <CardTitle className="flex items-center gap-3 text-xl">
                   <Users className="w-6 h-6 text-green-600" />
@@ -279,7 +335,7 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
             </Card>
 
             {/* Customer Information */}
-            <Card className="bg-white/80 backdrop-blur-sm shadow-xl border-0">
+            <Card className="bg-white/70 backdrop-blur-sm shadow-xl border-0 border border-white/20">
               <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-t-lg">
                 <CardTitle className="flex items-center gap-3 text-xl">
                   <CreditCard className="w-6 h-6 text-purple-600" />
@@ -296,10 +352,20 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
                     </label>
                     <Input
                       value={customerInfo.name}
-                      onChange={(e) => setCustomerInfo({...customerInfo, name: e.target.value})}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setCustomerInfo({...customerInfo, name: value})
+                        validateField('name', value)
+                      }}
+                      onBlur={(e) => validateField('name', e.target.value)}
                       placeholder="Nhập họ và tên đầy đủ"
-                      className="h-12 text-lg border-2 border-gray-200 focus:border-purple-500 rounded-xl shadow-sm hover:shadow-md transition-all duration-300"
+                      className={`h-12 text-lg border-2 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 ${
+                        formErrors.name ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-purple-500'
+                      }`}
                     />
+                    {formErrors.name && (
+                      <p className="text-red-500 text-sm mt-1">{formErrors.name}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -307,10 +373,21 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
                     </label>
                     <Input
                       value={customerInfo.phone}
-                      onChange={(e) => setCustomerInfo({...customerInfo, phone: e.target.value})}
-                      placeholder="Nhập số điện thoại"
-                      className="h-12 text-lg border-2 border-gray-200 focus:border-purple-500 rounded-xl shadow-sm hover:shadow-md transition-all duration-300"
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, '') // Chỉ cho phép số
+                        setCustomerInfo({...customerInfo, phone: value})
+                        validateField('phone', value)
+                      }}
+                      onBlur={(e) => validateField('phone', e.target.value)}
+                      placeholder="Nhập số điện thoại (10 chữ số)"
+                      maxLength={10}
+                      className={`h-12 text-lg border-2 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 ${
+                        formErrors.phone ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-purple-500'
+                      }`}
                     />
+                    {formErrors.phone && (
+                      <p className="text-red-500 text-sm mt-1">{formErrors.phone}</p>
+                    )}
                   </div>
                   <div className="sm:col-span-2 space-y-2">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -319,17 +396,27 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
                     <Input
                       type="email"
                       value={customerInfo.email}
-                      onChange={(e) => setCustomerInfo({...customerInfo, email: e.target.value})}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setCustomerInfo({...customerInfo, email: value})
+                        validateField('email', value)
+                      }}
+                      onBlur={(e) => validateField('email', e.target.value)}
                       placeholder="Nhập địa chỉ email"
-                      className="h-12 text-lg border-2 border-gray-200 focus:border-purple-500 rounded-xl shadow-sm hover:shadow-md transition-all duration-300"
+                      className={`h-12 text-lg border-2 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 ${
+                        formErrors.email ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-purple-500'
+                      }`}
                     />
+                    {formErrors.email && (
+                      <p className="text-red-500 text-sm mt-1">{formErrors.email}</p>
+                    )}
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Booking Summary */}
-            <Card className="bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 shadow-2xl border-0">
+            <Card className="bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 shadow-2xl border-0 border border-white/20">
               <CardHeader className="bg-gradient-to-r from-green-600 to-blue-600 rounded-t-lg">
                 <CardTitle className="text-white text-2xl font-bold text-center">
                   🎫 Tóm Tắt Đặt Vé
@@ -368,7 +455,7 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
                 <Button 
                   onClick={handleBooking}
                   className="w-full mt-8 h-16 text-xl font-bold bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 rounded-xl"
-                  disabled={!selectedShowtime || selectedSeats.length === 0}
+                  disabled={!currentSelectedShowtime || selectedSeats.length === 0}
                 >
                   🎫 Xác Nhận Đặt Vé
                 </Button>

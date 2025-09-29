@@ -1,16 +1,28 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 const API = 'http://127.0.0.1:8080/api/admin'
 
 export default function Admin() {
+  const navigate = useNavigate()
   const [movies, setMovies] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState(null) // movie object
   const [showtimes, setShowtimes] = useState([])
   const [stForm, setStForm] = useState({ startTime: '', price: 100000, auditorium: '' })
+  
+  // Toast system
+  const [toasts, setToasts] = useState([])
+  const showToast = (message, type = 'success') => {
+    const id = Math.random().toString(36).slice(2)
+    setToasts(prev => [...prev, { id, message, type }])
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, 3000)
+  }
 
   const getHeaders = () => {
     const token = localStorage.getItem('token')
@@ -65,48 +77,105 @@ export default function Admin() {
       if (!res.ok) { 
         const errorText = await res.text();
         console.error('Lưu phim thất bại:', errorText);
-        window.appToast?.('Lưu phim thất bại'); 
+        showToast('Lưu phim thất bại', 'error'); 
         return 
       }
-      window.appToast?.('Lưu phim thành công')
+      showToast('Lưu phim thành công!', 'success')
       await loadMovies()
       if (!editing.id) setEditing(null)
     } catch (error) {
       console.error('Lỗi khi lưu phim:', error);
-      window.appToast?.('Lưu phim thất bại - Lỗi kết nối');
+      showToast('Lưu phim thất bại - Lỗi kết nối', 'error');
     }
   }
 
   const removeMovie = async (id) => {
     if (!confirm('Xóa phim?')) return
     const res = await fetch(`${API}/movies/${id}`, { method:'DELETE', headers: getHeaders() })
-    if (res.ok) { window.appToast?.('Đã xóa phim'); await loadMovies(); setEditing(null); setShowtimes([]) }
+    if (res.ok) { 
+      showToast('Đã xóa phim thành công!', 'success'); 
+      await loadMovies(); 
+      setEditing(null); 
+      setShowtimes([]) 
+    } else {
+      showToast('Xóa phim thất bại', 'error');
+    }
   }
 
   const addShowtime = async () => {
     if (!editing?.id) return
-    const res = await fetch(`${API}/movies/${editing.id}/showtimes`, { method:'POST', headers: getHeaders(), body: JSON.stringify(stForm) })
-    if (!res.ok) { window.appToast?.('Thêm suất thất bại'); return }
-    window.appToast?.('Đã thêm suất')
-    setStForm({ startTime:'', price: 100000, auditorium:'' })
-    const r = await fetch(`${API}/movies/${editing.id}/showtimes`, { headers: getHeaders() })
-    if (r.ok) setShowtimes(await r.json())
+    
+    // Kiểm tra dữ liệu đầu vào
+    if (!stForm.startTime) {
+      showToast('Vui lòng chọn thời gian chiếu', 'error');
+      return;
+    }
+    if (!stForm.auditorium) {
+      showToast('Vui lòng nhập tên phòng chiếu', 'error');
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${API}/movies/${editing.id}/showtimes`, { 
+        method:'POST', 
+        headers: getHeaders(), 
+        body: JSON.stringify(stForm) 
+      })
+      
+      if (!res.ok) { 
+        const errorText = await res.text();
+        console.error('Thêm suất thất bại:', errorText);
+        showToast('Thêm suất thất bại', 'error'); 
+        return 
+      }
+      
+      showToast('Đã thêm suất chiếu thành công!', 'success')
+      setStForm({ startTime:'', price: 100000, auditorium:'' })
+      
+      // Reload showtimes
+      const r = await fetch(`${API}/movies/${editing.id}/showtimes`, { headers: getHeaders() })
+      if (r.ok) setShowtimes(await r.json())
+    } catch (error) {
+      console.error('Lỗi khi thêm suất chiếu:', error);
+      showToast('Thêm suất thất bại - Lỗi kết nối', 'error');
+    }
   }
 
   const updateShowtime = async (st) => {
     const res = await fetch(`${API.replace('/admin','')}/admin/showtimes/${st.id}`, { method:'PUT', headers: getHeaders(), body: JSON.stringify(st) })
-    if (!res.ok) window.appToast?.('Lưu suất thất bại'); else window.appToast?.('Lưu suất thành công')
+    if (!res.ok) showToast('Lưu suất thất bại', 'error'); else showToast('Lưu suất thành công!', 'success')
   }
 
   const deleteShowtime = async (id) => {
     if (!confirm('Xóa suất chiếu?')) return
     const res = await fetch(`${API.replace('/admin','')}/admin/showtimes/${id}`, { method:'DELETE', headers: getHeaders() })
-    if (res.ok) { window.appToast?.('Đã xóa suất'); setShowtimes(showtimes.filter(s=>s.id!==id)) }
+    if (res.ok) { 
+      showToast('Đã xóa suất chiếu thành công!', 'success'); 
+      setShowtimes(showtimes.filter(s=>s.id!==id)) 
+    } else {
+      showToast('Xóa suất chiếu thất bại', 'error');
+    }
   }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 text-white">
-      <h1 className="text-3xl font-extrabold mb-6">Admin • Quản lý Phim & Suất chiếu</h1>
+      {/* Header với nút quay lại */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 rounded-lg border-2 transition hover:bg-white/10"
+            style={{ borderColor: 'rgba(255,255,255,0.2)', color: '#8B8D98' }}
+          >
+            ← Quay lại
+          </button>
+          <h1 className="text-3xl font-extrabold">Admin • Quản lý Phim & Suất chiếu</h1>
+        </div>
+        <div className="text-sm text-gray-400">
+          👤 Đang đăng nhập với quyền Admin
+        </div>
+      </div>
+      
       {error && <div className="text-red-400 mb-4">{error}</div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -210,6 +279,22 @@ export default function Admin() {
             </div>
           )}
         </div>
+      </div>
+      
+      {/* Toast Notifications */}
+      <div className="fixed top-4 right-4 z-[9999] space-y-2">
+        {toasts.map(toast => (
+          <div 
+            key={toast.id} 
+            className={`px-4 py-3 rounded-lg text-sm font-medium shadow-lg transition-all duration-300 ${
+              toast.type === 'success' 
+                ? 'bg-green-500 text-white' 
+                : 'bg-red-500 text-white'
+            }`}
+          >
+            {toast.message}
+          </div>
+        ))}
       </div>
     </div>
   )

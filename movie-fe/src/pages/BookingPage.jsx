@@ -5,6 +5,42 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Clock, MapPin, Users, CreditCard } from 'lucide-react'
 
+function VietQRPaymentModal({ open, onClose, amount, code, bank, account, accountName, onPaid }) {
+  if (!open) return null
+  const params = new URLSearchParams({
+    amount: String(amount || 0),
+    addInfo: `CH-${code}`,
+    accountName: accountName || ''
+  })
+  const qrUrl = `https://img.vietqr.io/image/${encodeURIComponent(bank)}-${encodeURIComponent(account)}-qr_only.png?${params.toString()}`
+  return (
+    <div className="fixed inset-0 z-[9998] bg-black/50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden">
+        <div className="p-4 border-b">
+          <div className="text-lg font-semibold">Thanh toán VietQR</div>
+        </div>
+        <div className="p-4 space-y-4">
+          <div className="text-sm text-gray-600">Vui lòng mở ứng dụng ngân hàng, quét QR và chuyển khoản đúng số tiền, nội dung.</div>
+          <div className="flex justify-center">
+            <img alt="vietqr" src={qrUrl} className="w-64 h-64 object-contain" />
+          </div>
+          <div className="bg-gray-50 rounded-xl p-3 space-y-2 text-sm">
+            <div className="flex justify-between"><span>Số tiền</span><span className="font-semibold">{(amount||0).toLocaleString('vi-VN')} VNĐ</span></div>
+            <div className="flex justify-between"><span>Nội dung</span><span className="font-mono">CH-{code}</span></div>
+            <div className="flex justify-between"><span>Ngân hàng</span><span className="font-semibold">{bank}</span></div>
+            <div className="flex justify-between"><span>Số tài khoản</span><span className="font-semibold">{account}</span></div>
+            <div className="flex justify-between"><span>Chủ tài khoản</span><span className="font-semibold">{accountName}</span></div>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 h-12 rounded-lg border">Đóng</button>
+            <button onClick={onPaid} className="flex-1 h-12 rounded-lg text-white" style={{background:'linear-gradient(90deg, #16a34a, #2563eb)'}}>Tôi đã chuyển tiền</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking }) => {
   const [selectedShowtimeText, setSelectedShowtimeText] = useState('')
   const [selectedSeats, setSelectedSeats] = useState([])
@@ -17,6 +53,8 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
     phone: ''
   })
   const [formErrors, setFormErrors] = useState({})
+  const [showVietQR, setShowVietQR] = useState(false)
+  const [bookingCodePreview, setBookingCodePreview] = useState('')
 
   const seatLayout = [
     ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'],
@@ -108,6 +146,25 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
     setFormErrors(prev => ({ ...prev, [field]: error }))
   }
 
+  // Tạo booking trên backend và trả về bookingCode
+  const createBooking = async () => {
+    const res = await fetch('http://127.0.0.1:8080/api/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        movieId: selectedMovie.id,
+        showtimeId: currentSelectedShowtime.id,
+        showtime: selectedShowtimeText,
+        seats: selectedSeats,
+        name: customerInfo.name,
+        email: customerInfo.email,
+        phone: customerInfo.phone
+      })
+    })
+    if (!res.ok) throw new Error('Đặt vé thất bại')
+    return await res.json() // { bookingCode, ... }
+  }
+
   const handleBooking = async () => {
     if (!selectedShowtimeText || selectedSeats.length === 0 || !customerInfo.name || !customerInfo.email || !customerInfo.phone) {
       if (!validate()) return
@@ -119,21 +176,7 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
     }
 
     try {
-      const res = await fetch('http://127.0.0.1:8080/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          movieId: selectedMovie.id,
-          showtimeId: currentSelectedShowtime.id,
-          showtime: selectedShowtimeText,
-          seats: selectedSeats,
-          name: customerInfo.name,
-          email: customerInfo.email,
-          phone: customerInfo.phone
-        })
-      })
-      if (!res.ok) throw new Error('Đặt vé thất bại')
-      const data = await res.json()
+      const data = await createBooking()
       onConfirmBooking({
         movie: selectedMovie,
         showtime: selectedShowtimeText,
@@ -452,18 +495,54 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
                   </div>
                 </div>
                 
-                <Button 
-                  onClick={handleBooking}
-                  className="w-full mt-8 h-16 text-xl font-bold bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 rounded-xl"
-                  disabled={!currentSelectedShowtime || selectedSeats.length === 0}
-                >
-                  🎫 Xác Nhận Đặt Vé
-                </Button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-8">
+                  <button 
+                    onClick={handleBooking}
+                    className="h-16 text-xl font-bold text-white rounded-xl shadow-xl"
+                    style={{background:'linear-gradient(90deg, #16a34a, #2563eb)'}}
+                    disabled={!currentSelectedShowtime || selectedSeats.length === 0}
+                  >
+                    🎫 Đặt vé và thanh toán sau
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const code = Math.random().toString(36).substr(2, 9).toUpperCase()
+                      setBookingCodePreview(code)
+                      setShowVietQR(true)
+                    }}
+                    className="h-16 text-xl font-bold text-white rounded-xl shadow-xl"
+                    style={{background:'linear-gradient(90deg, #8A31AA, #8B8D98)'}}
+                    disabled={!currentSelectedShowtime || selectedSeats.length === 0}
+                  >
+                    🧾 Thanh toán VietQR
+                  </button>
+                </div>
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+
+      <VietQRPaymentModal
+        open={showVietQR}
+        onClose={() => setShowVietQR(false)}
+        amount={totalPrice}
+        code={bookingCodePreview}
+        bank={import.meta.env.VITE_VIETQR_BANK || 'vietcombank'}
+        account={import.meta.env.VITE_VIETQR_ACCOUNT || '0123456789'}
+        accountName={import.meta.env.VITE_VIETQR_ACCOUNT_NAME || 'NGUYEN VAN A'}
+        onPaid={() => {
+          setShowVietQR(false)
+          onConfirmBooking({
+            movie: selectedMovie,
+            showtime: selectedShowtimeText,
+            seats: selectedSeats,
+            customer: customerInfo,
+            totalPrice: totalPrice,
+            bookingCode: bookingCodePreview
+          })
+        }}
+      />
     </div>
   )
 }

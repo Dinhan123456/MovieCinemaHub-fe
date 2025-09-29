@@ -7,6 +7,7 @@ import Admin from './pages/Admin'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import BookingHistory from './pages/BookingHistory'
+import BookingSuccess from './pages/BookingSuccess'
 import { AuthAPI } from './api/http'
 
 function App() {
@@ -28,7 +29,9 @@ function AppContent() {
   }
 
   const handleConfirmBooking = (bookingData) => {
-    const bookingCode = Math.random().toString(36).substr(2, 9).toUpperCase()
+    const bookingCode = (bookingData && bookingData.bookingCode)
+      ? bookingData.bookingCode
+      : Math.random().toString(36).substr(2, 9).toUpperCase()
     
     // Lưu booking vào localStorage để demo (thay vì gửi lên server)
     const newBooking = {
@@ -49,9 +52,8 @@ function AppContent() {
     const existingBookings = JSON.parse(localStorage.getItem('userBookings') || '[]')
     existingBookings.push(newBooking)
     localStorage.setItem('userBookings', JSON.stringify(existingBookings))
-    
-    alert(`🎉 ĐẶT VÉ THÀNH CÔNG! 🎉\n\n📽️ Phim: ${bookingData.movie.title}\n🕐 Suất chiếu: ${bookingData.showtime}\n🪑 Ghế: ${bookingData.seats.join(', ')}\n💰 Tổng tiền: ${bookingData.totalPrice.toLocaleString('vi-VN')} VNĐ\n\n🎫 Mã vé: ${bookingCode}\n\nCảm ơn bạn đã sử dụng dịch vụ của CinemaHub!`)
-    navigate('/')
+    // Điều hướng đến trang thành công (không dùng alert)
+    navigate('/booking-success', { state: newBooking })
   }
 
   const isAuthed = !!AuthAPI.getToken()
@@ -118,6 +120,7 @@ function AppContent() {
         <Route path="/movie/:id" element={<MovieDetailWrapper />} />
         
         <Route path="/booking" element={<BookingPageWrapper />} />
+        <Route path="/booking-success" element={<BookingSuccessWrapper />} />
         
         <Route path="/booking-history" element={
           <BookingHistory onBack={()=>navigate('/')} />
@@ -179,8 +182,23 @@ function BookingPageWrapper() {
   
   const handleConfirmBooking = (bookingData) => {
     const bookingCode = Math.random().toString(36).substr(2, 9).toUpperCase()
-    alert(`🎉 ĐẶT VÉ THÀNH CÔNG! 🎉\n\n📽️ Phim: ${bookingData.movie.title}\n🕐 Suất chiếu: ${bookingData.showtime}\n🪑 Ghế: ${bookingData.seats.join(', ')}\n💰 Tổng tiền: ${bookingData.totalPrice.toLocaleString('vi-VN')} VNĐ\n\n🎫 Mã vé: ${bookingCode}\n\nCảm ơn bạn đã sử dụng dịch vụ của CinemaHub!`)
-    navigate('/')
+    const newBooking = {
+      id: Date.now(),
+      bookingCode,
+      movie: bookingData.movie,
+      showtime: bookingData.showtime,
+      seats: bookingData.seats,
+      totalPrice: bookingData.totalPrice,
+      customerName: bookingData.customer.name,
+      customerEmail: bookingData.customer.email,
+      customerPhone: bookingData.customer.phone,
+      bookingDate: new Date().toISOString(),
+      status: 'CONFIRMED'
+    }
+    const existing = JSON.parse(localStorage.getItem('userBookings') || '[]')
+    existing.push(newBooking)
+    localStorage.setItem('userBookings', JSON.stringify(existing))
+    navigate('/booking-success', { state: newBooking })
   }
   
   return (
@@ -194,3 +212,17 @@ function BookingPageWrapper() {
 }
 
 export default App
+
+// Wrapper cho trang thành công: đọc state, nếu thiếu thì quay về /
+function BookingSuccessWrapper() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const data = location.state
+  return (
+    <BookingSuccess 
+      data={data}
+      onHome={() => navigate('/')}
+      onViewHistory={() => navigate('/booking-history')}
+    />
+  )
+}

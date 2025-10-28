@@ -116,6 +116,9 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
       }
     }
     loadSeats()
+    // polling nhẹ để cập nhật trạng thái ghế theo thời gian thực
+    const timer = setInterval(loadSeats, 5000)
+    return () => clearInterval(timer)
   }, [currentSelectedShowtime?.id])
 
   const validate = () => {
@@ -185,11 +188,31 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
         totalPrice: totalPrice,
         bookingCode: data.bookingCode
       })
+      // cập nhật UI ngay: đánh dấu ghế đã bán và làm trống lựa chọn
+      setSoldSeats(prev => {
+        const next = new Set(prev)
+        selectedSeats.forEach(s => next.add(s))
+        return next
+      })
+      setSelectedSeats([])
     } catch (e) {
       try {
         const data = await e.response?.json()
         if (data?.status === 'VALIDATION_ERROR') {
           setFormErrors(data.errors || {})
+          return
+        }
+        if (data?.code === 'SEAT_TAKEN') {
+          alert(`Ghế ${data.seat || ''} đã có người đặt, vui lòng chọn ghế khác.`)
+          // refresh lại ghế
+          if (currentSelectedShowtime?.id) {
+            const res = await fetch(`http://127.0.0.1:8080/api/showtimes/${currentSelectedShowtime.id}/seats`)
+            if (res.ok) {
+              const list = await res.json()
+              const sold = new Set(list.filter(s => s.sold).map(s => s.seatCode))
+              setSoldSeats(sold)
+            }
+          }
           return
         }
       } catch {}
@@ -506,13 +529,24 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
                   </button>
                   <button 
                     onClick={() => {
+                      // Yêu cầu nhập đầy đủ/thông tin hợp lệ trước khi thanh toán QR
+                      if (!validate()) {
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                        return
+                      }
                       const code = Math.random().toString(36).substr(2, 9).toUpperCase()
                       setBookingCodePreview(code)
                       setShowVietQR(true)
                     }}
                     className="h-16 text-xl font-bold text-white rounded-xl shadow-xl"
                     style={{background:'linear-gradient(90deg, #8A31AA, #8B8D98)'}}
-                    disabled={!currentSelectedShowtime || selectedSeats.length === 0}
+                    disabled={
+                      !currentSelectedShowtime ||
+                      selectedSeats.length === 0 ||
+                      !customerInfo.name?.trim() ||
+                      !customerInfo.email?.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) ||
+                      !customerInfo.phone?.match(/^[0-9]{10}$/)
+                    }
                   >
                     🧾 Thanh toán VietQR
                   </button>
@@ -531,16 +565,43 @@ const BookingPage = ({ selectedMovie, selectedShowtime, onBack, onConfirmBooking
         bank={import.meta.env.VITE_VIETQR_BANK || 'vietcombank'}
         account={import.meta.env.VITE_VIETQR_ACCOUNT || '0123456789'}
         accountName={import.meta.env.VITE_VIETQR_ACCOUNT_NAME || 'NGUYEN VAN A'}
-        onPaid={() => {
-          setShowVietQR(false)
-          onConfirmBooking({
-            movie: selectedMovie,
-            showtime: selectedShowtimeText,
-            seats: selectedSeats,
-            customer: customerInfo,
-            totalPrice: totalPrice,
-            bookingCode: bookingCodePreview
-          })
+        onPaid={async () => {
+          try {
+            const data = await createBooking()
+            setShowVietQR(false)
+            onConfirmBooking({
+              movie: selectedMovie,
+              showtime: selectedShowtimeText,
+              seats: selectedSeats,
+              customer: customerInfo,
+              totalPrice: totalPrice,
+              bookingCode: data.bookingCode || bookingCodePreview
+            })
+            // cập nhật UI ngay
+            setSoldSeats(prev => {
+              const next = new Set(prev)
+              selectedSeats.forEach(s => next.add(s))
+              return next
+            })
+            setSelectedSeats([])
+          } catch (e) {
+            try {
+              const data = await e.response?.json()
+              if (data?.code === 'SEAT_TAKEN') {
+                alert(`Ghế ${data.seat || ''} đã có người đặt, vui lòng chọn ghế khác.`)
+                if (currentSelectedShowtime?.id) {
+                  const res = await fetch(`http://127.0.0.1:8080/api/showtimes/${currentSelectedShowtime.id}/seats`)
+                  if (res.ok) {
+                    const list = await res.json()
+                    const sold = new Set(list.filter(s => s.sold).map(s => s.seatCode))
+                    setSoldSeats(sold)
+                  }
+                }
+                return
+              }
+            } catch {}
+            alert(e.message || 'Thanh toán thất bại')
+          }
         }}
       />
     </div>

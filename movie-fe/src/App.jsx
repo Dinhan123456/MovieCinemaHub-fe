@@ -49,9 +49,11 @@ function AppContent() {
     }
     
     // Lấy danh sách booking hiện tại
-    const existingBookings = JSON.parse(localStorage.getItem('userBookings') || '[]')
+    const username = AuthAPI.getUsername() || 'guest'
+    const key = `userBookings:${username}`
+    const existingBookings = JSON.parse(localStorage.getItem(key) || '[]')
     existingBookings.push(newBooking)
-    localStorage.setItem('userBookings', JSON.stringify(existingBookings))
+    localStorage.setItem(key, JSON.stringify(existingBookings))
     // Điều hướng đến trang thành công (không dùng alert)
     navigate('/booking-success', { state: newBooking })
   }
@@ -195,9 +197,11 @@ function BookingPageWrapper() {
       bookingDate: new Date().toISOString(),
       status: 'CONFIRMED'
     }
-    const existing = JSON.parse(localStorage.getItem('userBookings') || '[]')
+    const username = AuthAPI.getUsername() || 'guest'
+    const key = `userBookings:${username}`
+    const existing = JSON.parse(localStorage.getItem(key) || '[]')
     existing.push(newBooking)
-    localStorage.setItem('userBookings', JSON.stringify(existing))
+    localStorage.setItem(key, JSON.stringify(existing))
     navigate('/booking-success', { state: newBooking })
   }
   

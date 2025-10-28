@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Calendar, Clock, MapPin, Users, Ticket, Search } from 'lucide-react'
+import { AuthAPI } from '@/api/http'
 
 const API_BASE = 'http://127.0.0.1:8080/api'
 
@@ -26,8 +27,10 @@ export default function BookingHistory({ onBack }) {
         return
       }
 
-      // Đọc từ localStorage thay vì API (để demo)
-      const userBookings = JSON.parse(localStorage.getItem('userBookings') || '[]')
+      // Đọc từ localStorage theo người dùng (demo): userBookings:<username>
+      const username = AuthAPI.getUsername() || 'guest'
+      const key = `userBookings:${username}`
+      const userBookings = JSON.parse(localStorage.getItem(key) || '[]')
       setBookings(userBookings)
     } catch (e) {
       console.error('Error loading bookings:', e)
@@ -57,6 +60,36 @@ export default function BookingHistory({ onBack }) {
     return matchesSearch && matchesStatus
   })
 
+  const cancelBooking = async (code) => {
+    try {
+      const res = await fetch(`${API_BASE}/bookings/${code}/cancel`, { method: 'POST' })
+      if (!res.ok) {
+        // Nếu booking không tồn tại trên server (404) thì vẫn hủy local cho bản demo
+        if (res.status === 404) {
+          const username = AuthAPI.getUsername() || 'guest'
+          const key = `userBookings:${username}`
+          const list = JSON.parse(localStorage.getItem(key) || '[]')
+          const next = list.map(b => b.bookingCode === code ? { ...b, status: 'CANCELLED' } : b)
+          localStorage.setItem(key, JSON.stringify(next))
+          setBookings(next)
+          alert('Vé đã được hủy trong lịch sử cục bộ (server không tìm thấy đơn).')
+          return
+        }
+        throw new Error('Hủy vé thất bại')
+      }
+      const data = await res.json()
+      // Cập nhật localStorage demo
+      const username = AuthAPI.getUsername() || 'guest'
+      const key = `userBookings:${username}`
+      const list = JSON.parse(localStorage.getItem(key) || '[]')
+      const next = list.map(b => b.bookingCode === code ? { ...b, status: 'CANCELLED' } : b)
+      localStorage.setItem(key, JSON.stringify(next))
+      setBookings(next)
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-gradient)' }}>
@@ -81,38 +114,21 @@ export default function BookingHistory({ onBack }) {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-gradient)' }}>
-      {/* Header */}
-      <header className="backdrop-blur-md shadow-lg sticky top-0 z-50" style={{ backgroundColor: 'rgba(17,17,17,0.8)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(90deg, #8A31AA, #8B8D98)' }}>
-                <span className="text-white font-bold text-xl">C</span>
-              </div>
-              <div>
-                <h1 className="text-4xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(90deg, #8A31AA, #8B8D98)' }}>
-                  CinemaHub
-                </h1>
-                <p className="mt-1 text-lg" style={{ color: '#8B8D98' }}>Lịch sử đặt vé</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="outline" 
-                onClick={onBack}
-                className="px-3 py-1.5 text-sm rounded-lg border-2 transition" 
-                style={{ borderColor: 'rgba(255,255,255,0.2)', color: '#8B8D98' }}
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Quay lại
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Back button gọn nhẹ */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <Button 
+          variant="outline" 
+          onClick={onBack}
+          className="px-3 py-1.5 text-sm rounded-lg border-2 transition" 
+          style={{ borderColor: 'rgba(255,255,255,0.2)', color: '#8B8D98' }}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Quay lại
+        </Button>
+      </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Search and Filter */}
         <div className="mb-8">
           <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
@@ -231,6 +247,15 @@ export default function BookingHistory({ onBack }) {
                       <div className="text-right">
                         <p className="text-sm text-gray-500">Số điện thoại</p>
                         <p className="font-semibold text-gray-900">{booking.customerPhone}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {booking.status !== 'CANCELLED' && (
+                          <button onClick={() => cancelBooking(booking.bookingCode)} className="h-10 px-4 rounded-lg text-white" style={{background:'linear-gradient(90deg, #ef4444, #f97316)'}}>
+                            Hủy vé
+                          </button>
+                        )}
+                        <div className="text-sm text-gray-500">Trạng thái: </div>
+                        <div>{getStatusBadge(booking.status)}</div>
                       </div>
                     </div>
                   </div>
